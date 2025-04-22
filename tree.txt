@@ -1,0 +1,31 @@
+.
+├── README.md
+├── airflow
+│   ├── logs
+│   │   └── __init__.py
+│   └── src
+│       ├── __init__.py
+│       ├── data_processing
+│       │   └── __init__.py
+│       ├── data_validation
+│       │   └── __init__.py
+│       └── model
+│           └── __init__.py
+├── assets
+│   └── plots
+│       └── test.png
+├── data
+│   ├── processed
+│   └── raw
+│       ├── IDs_mapping.csv
+│       ├── description.pdf
+│       └── diabetic_data.csv
+├── gcpdeploy
+│   └── app.py
+├── src
+│   └── __init__.py
+├── tests
+│   └── test_data.py
+└── tree.txt
+
+15 directories, 14 files

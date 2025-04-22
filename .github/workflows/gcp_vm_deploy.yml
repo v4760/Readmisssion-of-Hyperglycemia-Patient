@@ -1,0 +1,56 @@
+name: Deploy Airflow VM on GCP
+
+on:
+  workflow_dispatch:  # Manual trigger
+
+jobs:
+  deploy-airflow:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Authenticate with GCP
+      uses: google-github-actions/auth@v1
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+    - name: Set up Google Cloud CLI
+      uses: google-github-actions/setup-gcloud@v2
+      with:
+        project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+    - name: Enable Compute Engine API
+      run: gcloud services enable compute.googleapis.com
+
+    - name: Save GCP SA Key to file
+      run: echo '${{ secrets.GCP_SA_KEY }}' > gcp_sa_key.json
+
+    - name: Check if VM exists and create if not
+      run: |
+        VM_NAME="airflow-vm"
+        ZONE="us-central1-a"
+
+        echo "[INFO] Checking if VM '$VM_NAME' already exists..."
+        if gcloud compute instances describe "$VM_NAME" --zone="$ZONE" > /dev/null 2>&1; then
+          echo "✅ VM '$VM_NAME' already exists. Skipping creation."
+        else
+          echo "🚀 Creating VM '$VM_NAME'..."
+          gcloud compute instances create "$VM_NAME" \
+            --zone="$ZONE" \
+            --machine-type=e2-standard-4 \
+            --boot-disk-size=30GB \
+            --image-family=ubuntu-2204-lts \
+            --image-project=ubuntu-os-cloud \
+            --tags=http-server \
+            --metadata-from-file=startup-script=./startup.sh,GCP_SA_KEY=gcp_sa_key.json \
+            --metadata "SMTP_USER=${{ secrets.SMTP_USER }},SMTP_PASSWORD=${{ secrets.SMTP_PASSWORD }},DB_HOST=${{ secrets.DB_HOST }},DB_PORT=${{ secrets.DB_PORT }},DB_NAME=${{ secrets.DB_NAME }},DB_USER=${{ secrets.DB_USER }},DB_PASS=${{ secrets.DB_PASS }},GCP_BUCKET_NAME=${{ secrets.GCP_BUCKET_NAME }},GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }},AIRFLOW_UID=${{ secrets.AIRFLOW_UID }}"
+        fi
+
+    - name: Output External IP
+      run: |
+        EXTERNAL_IP=$(gcloud compute instances describe airflow-vm \
+          --zone=us-central1-a \
+          --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
+        echo "✅ Airflow should be live at: http://$EXTERNAL_IP:8080"

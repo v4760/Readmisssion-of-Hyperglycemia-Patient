@@ -1,0 +1,91 @@
+name: Build, Push & Deploy to Cloud Run
+
+on:
+  push:
+    branches:
+      - main
+      - folder_struct
+    paths:
+      - 'src/frontend/**'
+      - 'src/backend/**'
+      - 'src/frontend/Dockerfile'
+      - 'src/backend/Dockerfile'
+  workflow_dispatch:
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: us-east1
+  REPOSITORY: term-deposit-docker-repo
+  BACKEND_IMAGE_NAME: term-deposit-backend
+  FRONTEND_IMAGE_NAME: term-deposit-frontend
+  BACKEND_SERVICE_NAME: term-deposit-backend
+  FRONTEND_SERVICE_NAME: term-deposit-frontend
+
+jobs:
+  build-push-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate with GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker us-docker.pkg.dev
+
+      ####################
+      # BACKEND BUILD + PUSH + DEPLOY
+      ####################
+      - name: Build Backend Docker Image
+        run: |
+          docker build -t us-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.BACKEND_IMAGE_NAME }}:${{ github.sha }} ./src/backend
+
+      - name: Push Backend Docker Image
+        run: |
+          docker push us-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.BACKEND_IMAGE_NAME }}:${{ github.sha }}
+
+      - name: Tag & Push Backend as Latest
+        run: |
+          docker tag us-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.BACKEND_IMAGE_NAME }}:${{ github.sha }} us-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.BACKEND_IMAGE_NAME }}:latest
+          docker push us-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.BACKEND_IMAGE_NAME }}:latest
+
+      - name: Deploy Backend to Cloud Run
+        run: |
+          gcloud run deploy ${{ env.BACKEND_SERVICE_NAME }} \
+            --image=us-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.BACKEND_IMAGE_NAME }}:${{ github.sha }} \
+            --platform=managed \
+            --region=${{ env.REGION }} \
+            --allow-unauthenticated \
+            --project=${{ env.PROJECT_ID }} \
+            --max-instances=3 \
+            --set-env-vars=DB_USER=${{ secrets.DB_USER }},DB_PASS=${{ secrets.DB_PASS }},DB_HOST=${{ secrets.DB_HOST }},DB_NAME=${{ secrets.DB_NAME }}
+
+      ####################
+      # FRONTEND BUILD + PUSH + DEPLOY
+      ####################
+      - name: Build Frontend Docker Image
+        run: |
+          docker build -t us-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.FRONTEND_IMAGE_NAME }}:${{ github.sha }} ./src/frontend
+
+      - name: Push Frontend Docker Image
+        run: |
+          docker push us-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.FRONTEND_IMAGE_NAME }}:${{ github.sha }}
+
+      - name: Tag & Push Frontend as Latest
+        run: |
+          docker tag us-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.FRONTEND_IMAGE_NAME }}:${{ github.sha }} us-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.FRONTEND_IMAGE_NAME }}:latest
+          docker push us-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.FRONTEND_IMAGE_NAME }}:latest
+
+      - name: Deploy Frontend to Cloud Run
+        run: |
+          gcloud run deploy ${{ env.FRONTEND_SERVICE_NAME }} \
+            --image=us-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.FRONTEND_IMAGE_NAME }}:${{ github.sha }} \
+            --platform=managed \
+            --region=${{ env.REGION }} \
+            --allow-unauthenticated \
+            --max-instances=3 \
+            --project=${{ env.PROJECT_ID }}
