@@ -11,6 +11,9 @@ Interpretability of model is very important Interpretability is always important
 Latency is not strictly important Most of the health care related applications are not latency dependant.
 The cost of misclassification is high If the patient that doesnt need to readmit if model says “yes to readmit” that will will put financial burden on the patient. If patient need to readmit but model say “no to readmit” then that will cause readmission cost to the hospital so, misclasification rate should be as low as possible.
 
+# End to End ML pipeline
+![image](assets/mlops_pipeline.png)
+
 # Dataset Informattion
 ## Data Card
 
@@ -452,10 +455,6 @@ This integration with GCS enables:
 
 GCP Bucket tracking the Data Version for the dataset:
 ![image](assets/GCP_bucket.png)
- 
-## End to End ML pipeline
-![image](assets/mlops_pipeline.png)
-
 
 ### Pipeline Optimization 
 ![alt text](assets/image.png)
